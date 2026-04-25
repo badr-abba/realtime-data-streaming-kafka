@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 from confluent_kafka import Producer
 
-# 1. Charger les variables d'environnement
+# Charger les variables d'environnement
 load_dotenv()
 API_KEY = os.getenv('OPENWEATHER_API_KEY')
 KAFKA_BROKER = os.getenv('KAFKA_BROKER', 'localhost:9092')
@@ -14,23 +14,23 @@ CITIES = ["Paris", "Casablanca", "Rabat", "Tanger"]
 BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 TOPIC_NAME = "topic_api_meteo"
 
-# 2. Configuration du Producer Kafka
+# Configurer le Producer Kafka
 producer_config = {
     'bootstrap.servers': KAFKA_BROKER,
     'client.id': 'python-weather-producer'
 }
 producer = Producer(producer_config)
 
-# Fonction de callback (Callback = "Rappelle-moi quand c'est fini")
+# Fonction appelee lors de l'envoi d'un message (succes ou echec)
 def delivery_report(err, msg):
     if err is not None:
-        print(f"❌ Échec de la livraison : {err}")
+        print(f"Echec de l'envoi : {err}")
     else:
-        print(f"✅ Livré sur {msg.topic()} [Partition: {msg.partition()}] à l'offset {msg.offset()}")
+        print(f"Message envoye sur {msg.topic()} [Partition: {msg.partition()}] a l'offset {msg.offset()}")
 
-# 3. Fonction de collecte et d'envoi
+# Fonction pour recuperer la meteo et l'envoyer a Kafka
 def fetch_weather():
-    print(f"\n--- [API] Lancement de la collecte : {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"\n--- Collecte demarree : {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
     for city in CITIES:
         try:
             params = {
@@ -42,7 +42,7 @@ def fetch_weather():
             response.raise_for_status()
             data = response.json()
             
-            # Formatage de la donnée métier (Payload)
+            # Preparer le dictionnaire de donnees
             weather_payload = {
                 "city": data["name"],
                 "temperature": data["main"]["temp"],
@@ -51,36 +51,36 @@ def fetch_weather():
                 "timestamp": int(time.time())
             }
             
-            # Transformation en JSON binaire et envoi à Kafka
-            json_data = json.dumps(weather_payload).encode('utf-8')
-            byte_key = city.encode('utf-8')
-            
+            # Envoyer le message en format JSON binaire a Kafka
             producer.produce(
                 topic=TOPIC_NAME,
-                key=byte_key,
-                value=json_data,
+                key=city.encode('utf-8'),
+                value=json.dumps(weather_payload).encode('utf-8'),
                 callback=delivery_report
             )
             
-            # Demande à librdkafka de dépiler ses envois en arrière-plan
+            # Permet au producer de traiter les envois en arriere-plan
             producer.poll(0)
             
         except requests.exceptions.RequestException as e:
-            print(f"Erreur lors de l'appel API pour {city}: {e}")
+            print(f"Erreur d'appel API pour {city}: {e}")
         except Exception as e:
             print(f"Erreur inattendue pour {city}: {e}")
 
 if __name__ == "__main__":
-    print(f"Démarrage du Producer API Météo vers {KAFKA_BROKER} (Timer: 60s)...")
+    print(f"Demarrage du Producer vers {KAFKA_BROKER} (Toutes les 60s)...")
     
+    # Premier appel immediat
     fetch_weather()
+    
+    # Planifier l'execution toutes les 60 secondes
     schedule.every(60).seconds.do(fetch_weather)
     
     try:
         while True:
             schedule.run_pending()
-            time.sleep(1)
+            time.sleep(1) # Pause pour eviter la surcharge du CPU
     except KeyboardInterrupt:
-        print("\nArrêt manuel du script (Ctrl+C). Purge des messages en attente...")
-        producer.flush() # Attend que les derniers messages partent avant de s'éteindre
-        print("Arrêt complet.")
+        print("\nArret manuel demande. Purge des messages restants...")
+        producer.flush() # Envoyer les messages bloques en memoire avant l'arret
+        print("Fin du programme.")
