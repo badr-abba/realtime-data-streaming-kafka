@@ -1,0 +1,6 @@
+confluent-kafka
+psycopg2-binary
+pandas
+requests
+schedule
+python-dotenv

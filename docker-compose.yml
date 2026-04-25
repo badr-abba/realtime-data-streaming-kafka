@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_transport
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-2026+-}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../useCase2/init_database.sql:/docker-entrypoint-initdb.d/init_database.sql
+    networks:
+      - kafka-net
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka_broker
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,EXTERNAL://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - kafka-net
+
+  kafbat-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    container_name: kafbat_ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - kafka-net
+
+  init-kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka_init_topics
+    depends_on:
+      - kafka
+    networks:
+      - kafka-net
+    command: >
+      bash -c "
+        echo 'Attente du démarrage de Kafka...'
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list
+        
+        echo 'Création des topics...'
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic topic_api_meteo --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic topic_db_trafic --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1
+        
+        echo 'Topics créés avec succès !'
+      "
+
+volumes:
+  postgres_data:
+
+networks:
+  kafka-net:
+    driver: bridge
