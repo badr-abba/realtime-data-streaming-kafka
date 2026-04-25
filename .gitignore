@@ -1,0 +1,24 @@
+# Fichiers d'environnement (Sécurité : NE JAMAIS COMMITER LE .ENV)
+.env
+
+# Environnements virtuels Python
+.venv/
+venv/
+env/
+
+# Fichiers compilés et cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Fichiers de données (ignorés pour ne pas surcharger Git)
+data/
+*.csv
+watermark.txt
+watermark.json
+state.json
+
+# Fichiers systèmes et d'IDE
+.vscode/
+.idea/
+.DS_Store
