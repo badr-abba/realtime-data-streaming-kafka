@@ -22,3 +22,6 @@ state.json
 .vscode/
 .idea/
 .DS_Store
+
+# Data Lake
+data_lake/
