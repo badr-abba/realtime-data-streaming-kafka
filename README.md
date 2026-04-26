@@ -8,53 +8,54 @@ L'objectif principal est de construire un pipeline de données en temps réel ca
 ## 🏗️ Architecture Technique
 
 ```mermaid
-graph TD
-    %% Sources
-    API[API OpenWeatherMap]
-    DB[(PostgreSQL<br>trafic_bus)]
-
-    %% Producers
-    P_API[Producer API<br>Python]
-    P_DB[Producer DB<br>Python]
-
-    %% Kafka
-    subgraph Kafka_Cluster [Cluster Apache Kafka]
-        T_API(Topic:<br>topic_api_meteo)
-        T_DB(Topic:<br>topic_db_trafic)
+flowchart LR
+    subgraph Sources [Data Sources]
+        API([API OpenWeatherMap])
+        DB[(PostgreSQL)]
     end
 
-    %% Consumers
-    C_API[Consumer API<br>Python]
-    C_DB[Consumer DB<br>Python]
-
-    %% Data Lake
-    subgraph Data_Lake [Data Lake Local]
-        DL_API[(Export JSONL<br>Météo)]
-        DL_DB[(Export JSONL<br>Trafic)]
+    subgraph Producers [Data Ingestion]
+        P_API{{Producer API}}
+        P_DB{{Producer DB}}
     end
 
-    %% Flux Météo
-    API -- Polling (60s) --> P_API
-    P_API -- Produce --> T_API
-    T_API -- Consume --> C_API
-    C_API -- Micro-Batch (10) --> DL_API
+    subgraph Streaming [Apache Kafka Cluster]
+        T_API[(Topic: api_meteo)]
+        T_DB[(Topic: db_trafic)]
+    end
 
-    %% Flux DB
-    DB -- Incremental Load<br>(Watermark) --> P_DB
-    P_DB -- Produce --> T_DB
-    T_DB -- Consume --> C_DB
-    C_DB -- Micro-Batch (5) --> DL_DB
+    subgraph Consumers [Data Processing]
+        C_API{{Consumer API}}
+        C_DB{{Consumer DB}}
+    end
 
-    %% Styles
-    classDef source fill:#fce4ec,stroke:#f06292,stroke-width:2px;
-    classDef kafka fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef lake fill:#e3f2fd,stroke:#64b5f6,stroke-width:2px;
-    classDef python fill:#e8f5e9,stroke:#81c784,stroke-width:2px;
+    subgraph Storage [Raw Data Lake]
+        DL_API[(JSONL: Météo)]
+        DL_DB[(JSONL: Trafic)]
+    end
+
+    %% API Flow
+    API -- "HTTP GET (60s)" --> P_API
+    P_API -- "JSON / Bytes" --> T_API
+    T_API -- "Subscribe" --> C_API
+    C_API -- "Idempotence / Micro-Batch" --> DL_API
+
+    %% DB Flow
+    DB -- "SQL Incremental Load" --> P_DB
+    P_DB -- "JSON / Bytes" --> T_DB
+    T_DB -- "Subscribe" --> C_DB
+    C_DB -- "Idempotence / Micro-Batch" --> DL_DB
+
+    %% Styling
+    classDef source fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
+    classDef python fill:#e8f5e9,stroke:#43a047,stroke-width:2px,color:#1b5e20;
+    classDef kafka fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#e65100;
+    classDef lake fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c;
 
     class API,DB source;
+    class P_API,P_DB,C_API,C_DB python;
     class T_API,T_DB kafka;
     class DL_API,DL_DB lake;
-    class P_API,P_DB,C_API,C_DB python;
 ```
 
 ## 🛠️ Stack Technologique
