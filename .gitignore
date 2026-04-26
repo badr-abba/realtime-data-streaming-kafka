@@ -24,4 +24,4 @@ state.json
 .DS_Store
 
 # Data Lake
-data_lake/
+data_lake/*
